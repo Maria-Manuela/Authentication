@@ -1,7 +1,31 @@
+import bcrypt from "bcrypt-nodejs";
 import cors from "cors";
+import crypto from "crypto";
 import express from "express";
+import mongoose from "mongoose";
 
-import flowerData from "./data/flowers.json"
+const mongoUrl = process.env.MONGO_URL || "mongodb://localhost/authentication";
+mongoose.connect(mongoUrl);
+mongoose.Promise = Promise;
+
+const User = mongoose.model("User", {
+  name: {
+    type: String,
+    unique: true,
+  },
+  password: {
+    type: String,
+    required: true,
+  },
+  accessToken: {
+    type: String,
+    default: () => crypto.randomBytes(128).toString("hex"),
+  },
+});
+
+//One-way encryption
+/* const user = new User({ name: "Bob", password: bcrypt.hashSync("foobar") });
+user.save(); */
 
 // Defines the port the app will run on. Defaults to 8080, but can be overridden
 // when starting the server. Example command to overwrite PORT env variable value:
@@ -18,25 +42,19 @@ app.get("/", (req, res) => {
   res.send("Hello Technigo!");
 });
 
-//getting all the flowers
-//http://localhost:8080/flowers
-app.get("/flowers", (req, res) => {
-  res.json(flowerData)
-})
+app.post("/sessions", async (req, res) => {
+  const user = await User.findOne({ name: req.body.name });
+  if (user && bcrypt.compareSync(req.body.password, user.password)) {
+    //Success
+    res.json({ userId: user._id, accessToken: user.accessToken });
+  } else {
+    //Failure
+    res.json({ notFound: true });
+  }
+});
 
 // geeting one flower based on id
 //http://localhost:8080/flowers/12
-
-app.get("/flowers/:flowerId", (req, res) => {
-  const { flowerId } = req.params
-  const flower = flowerData.find(flower => +flowerId === flower.id)
-
-  if (flower) {
-    res.json(flower)
-  } else {
-    res.status(404).send('no flower was found')
-  }
-})
 
 // Start the server
 app.listen(port, () => {
